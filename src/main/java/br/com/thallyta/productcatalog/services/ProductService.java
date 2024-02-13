@@ -4,9 +4,11 @@ import br.com.thallyta.productcatalog.config.exceptions.CategoryNotFoundExceptio
 import br.com.thallyta.productcatalog.config.exceptions.ProductNotFoundException;
 import br.com.thallyta.productcatalog.models.Category;
 import br.com.thallyta.productcatalog.models.Product;
+import br.com.thallyta.productcatalog.models.dtos.MessageDTO;
 import br.com.thallyta.productcatalog.models.dtos.request.ProductRequestDTO;
 import br.com.thallyta.productcatalog.models.dtos.response.ProductResponseDTO;
 import br.com.thallyta.productcatalog.repositories.ProductRepository;
+import br.com.thallyta.productcatalog.services.aws.AwsSnsService;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -18,13 +20,16 @@ import java.util.Optional;
 public class ProductService {
 
     @Autowired
-    ModelMapper modelMapper;
+    private ModelMapper modelMapper;
 
     @Autowired
-    ProductRepository productRepository;
+    private ProductRepository productRepository;
 
     @Autowired
-    CategoryService categoryService;
+    private CategoryService categoryService;
+
+    @Autowired
+    private AwsSnsService awsSnsService;
 
     public Product insert(ProductRequestDTO productRequestDTO){
         Category category = categoryService.findById(productRequestDTO.getCategoryId()).orElseThrow(CategoryNotFoundException::new);
@@ -33,8 +38,10 @@ public class ProductService {
         product.setTitle(productRequestDTO.getTitle());
         product.setDescription(productRequestDTO.getDescription());
         product.setPrice(productRequestDTO.getPrice());
-        product.setCategory(category);
+        product.setCategoryId(category.getId());
+        product.setOwnerId(productRequestDTO.getOwnerId());
 
+        awsSnsService.publish(new MessageDTO(product.toString()));
         return productRepository.save(product);
     }
 
@@ -42,9 +49,9 @@ public class ProductService {
     public Product update(String id, ProductRequestDTO productRequestDTO) {
         Product product = productRepository.findById(id).orElseThrow(ProductNotFoundException::new);
 
-        if(product.getCategory().getId() != null) {
-            categoryService.findById(productRequestDTO.getCategoryId())
-                    .ifPresent(product::setCategory);
+        if(product.getCategoryId() != null) {
+            Category category = categoryService.findById(productRequestDTO.getCategoryId()).orElseThrow(CategoryNotFoundException::new);
+            product.setCategoryId(category.getId());
         }
 
         if(!productRequestDTO.getTitle().isEmpty()) product.setTitle(productRequestDTO.getTitle());
@@ -52,6 +59,7 @@ public class ProductService {
         if(productRequestDTO.getPrice() != null) product.setPrice(productRequestDTO.getPrice());
         if(!productRequestDTO.getOwnerId().isEmpty()) product.setOwnerId(productRequestDTO.getOwnerId());
 
+        awsSnsService.publish(new MessageDTO(product.toString()));
         productRepository.save(product);
         return product;
     }

@@ -2,9 +2,11 @@ package br.com.thallyta.productcatalog.services;
 
 import br.com.thallyta.productcatalog.config.exceptions.CategoryNotFoundException;
 import br.com.thallyta.productcatalog.models.Category;
+import br.com.thallyta.productcatalog.models.dtos.MessageDTO;
 import br.com.thallyta.productcatalog.models.dtos.request.CategoryRequestDTO;
 import br.com.thallyta.productcatalog.models.dtos.response.CategoryResponseDTO;
 import br.com.thallyta.productcatalog.repositories.CategoryRepository;
+import br.com.thallyta.productcatalog.services.aws.AwsSnsService;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,8 +23,12 @@ public class CategoryService {
     @Autowired
     private ModelMapper modelMapper;
 
+    @Autowired
+    private AwsSnsService awsSnsService;
+
     public Category insert(CategoryRequestDTO categoryRequestDTO){
         Category category = modelMapper.map(categoryRequestDTO, Category.class);
+        awsSnsService.publish(new MessageDTO(category.toString()));
         return categoryRepository.save(category);
     }
 
@@ -36,6 +42,9 @@ public class CategoryService {
 
         if(!categoryRequestDTO.getTitle().isEmpty()) category.setTitle(categoryRequestDTO.getTitle());
         if(!categoryRequestDTO.getDescription().isEmpty()) category.setDescription(categoryRequestDTO.getDescription());
+        if(!categoryRequestDTO.getOwnerId().isEmpty()) category.setOwnerId(categoryRequestDTO.getOwnerId());
+
+        awsSnsService.publish(new MessageDTO(category.toString()));
 
         categoryRepository.save(category);
         return category;
